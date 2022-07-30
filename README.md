@@ -7,6 +7,10 @@
 RV64I Instructions  
 linux boot
 
+https://user-images.githubusercontent.com/10168979/181935878-3e745ba7-05f7-478c-94bb-e4a8178dc202.mp4
+
+
+
 <br><br><br><br><br><br>
 
 use TinyEMU as a reference  
