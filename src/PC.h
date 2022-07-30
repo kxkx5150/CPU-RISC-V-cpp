@@ -67,6 +67,7 @@ class PC {
 
     void init();
     void load(int binno, std::string path);
+    void start();
     void run();
 
     BlockDevice     *block_device_init(const char *filename, BlockDeviceModeEnum mode);

@@ -31,7 +31,6 @@ void PC::init()
     for (int i = 1; i < 32; i++) {
         plic_irq[i] = new IRQSignal();
         plic_irq[i]->irq_init(plic_set_irq, this, i);
-        // irq_init(&plic_irq[i], );
     }
     mem_map->cpu_register_device(HTIF_BASE_ADDR, 16, this, htif_read, htif_write, DEVIO_SIZE32);
 
@@ -60,64 +59,64 @@ void PC::init()
     load(0, "bin/bbl64.bin");
     load(1, "bin/kernel-riscv64.bin");
     load(2, "bin/kernel-riscv64.bin");
-    printf("init\n");
+    start();
 }
 void PC::load(int binno, std::string path)
 {
-    std::string cmd_line = "console=hvc0 root=/dev/vda rw";
-    FILE       *f        = fopen(path.c_str(), "rb");
+    FILE *f = fopen(path.c_str(), "rb");
     fseek(f, 0, SEEK_END);
     const int size = ftell(f);
     fseek(f, 0, SEEK_SET);
     uint8_t *buffer = new uint8_t[size];
-    auto     __     = fread(buffer, size, 1, f);
+    auto     _      = fread(buffer, size, 1, f);
 
-    uint32_t  fdt_addr = 0;
-    uint8_t  *ram_ptr  = mem_map->phys_mem_get_ram_ptr(RAM_BASE_ADDR, TRUE);
-    uint32_t *q;
+    uint8_t *ram_ptr = mem_map->phys_mem_get_ram_ptr(RAM_BASE_ADDR, TRUE);
 
-    int offset = 0;
     if (binno == 0) {
         ddl    = buffer;
         ddllen = size;
         memcpy(ram_ptr, buffer, size);
-        printf(" ");
     } else if (binno == 1) {
         krnl           = buffer;
         krnllen        = size;
-        uint32_t align = 2 << 20; /* 2 MB page align */
+        uint32_t align = 2 << 20;
         kernel_base    = (ddllen + align - 1) & ~(align - 1);
         memcpy(ram_ptr + kernel_base, buffer, krnllen);
         if (krnllen + kernel_base > ram_size) {
+            fclose(f);
             exit(1);
         }
     } else if (binno == 2) {
-        fsys    = buffer;
-        fsyslen = size;
-
+        fsys        = buffer;
+        fsyslen     = size;
         initrd_base = ram_size / 2;
         if (initrd_base > (128 << 20))
             initrd_base = 128 << 20;
 
         memcpy(ram_ptr + initrd_base, fsys, fsyslen);
         if (size + initrd_base > ram_size) {
+            fclose(f);
             exit(1);
         }
-
-        ram_ptr  = get_ram_ptr(this, 0, TRUE);
-        fdt_addr = 0x1000 + 8 * 8;
-        build_fdt(this, ram_ptr + fdt_addr, RAM_BASE_ADDR + kernel_base, krnllen, RAM_BASE_ADDR + initrd_base, fsyslen,
-                  cmd_line.c_str());
-
-        q    = (uint32_t *)(ram_ptr + 0x1000);
-        q[0] = 0x297 + 0x80000000 - 0x1000;      /* auipc t0, jump_addr */
-        q[1] = 0x597;                            /* auipc a1, dtb */
-        q[2] = 0x58593 + ((fdt_addr - 4) << 20); /* addi a1, a1, dtb */
-        q[3] = 0xf1402573;                       /* csrr a0, mhartid */
-        q[4] = 0x00028067;                       /* jalr zero, t0, jump_addr */
     }
 
     fclose(f);
+}
+void PC::start()
+{
+    std::string cmd_line = "console=hvc0 root=/dev/vda rw";
+    uint8_t    *ram_ptr  = get_ram_ptr(this, 0, TRUE);
+    uint32_t    fdt_addr = 0x1000 + 8 * 8;
+    build_fdt(this, ram_ptr + fdt_addr, RAM_BASE_ADDR + kernel_base, krnllen, RAM_BASE_ADDR + initrd_base, fsyslen,
+              cmd_line.c_str());
+
+    uint32_t *q;
+    q    = (uint32_t *)(ram_ptr + 0x1000);
+    q[0] = 0x297 + 0x80000000 - 0x1000;      /* auipc t0, jump_addr */
+    q[1] = 0x597;                            /* auipc a1, dtb */
+    q[2] = 0x58593 + ((fdt_addr - 4) << 20); /* addi a1, a1, dtb */
+    q[3] = 0xf1402573;                       /* csrr a0, mhartid */
+    q[4] = 0x00028067;
 }
 void PC::run()
 {
