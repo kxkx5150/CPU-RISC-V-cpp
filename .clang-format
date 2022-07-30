@@ -60,7 +60,6 @@ SpaceBeforeParens: ControlStatements
 
 # コメントの前に4スペース入れる
 SpacesBeforeTrailingComments: 4
-
 # AlignArrayOfStructures: Left
 
-MaxEmptyLinesToKeep: 10
+# MaxEmptyLinesToKeep: 10

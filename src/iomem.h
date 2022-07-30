@@ -55,7 +55,6 @@ class PhysMemRange {
 };
 class PhysMemMap {
 
-
   public:
     int   n_phys_mem_range = 0;
     void *opaque           = nullptr;

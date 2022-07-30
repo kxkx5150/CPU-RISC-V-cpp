@@ -65,7 +65,6 @@ class CPU {
         }
     }
 
-
     int target_read_u8(uint8_t *pval, uint64_t addr);
     int target_read_u16(uint16_t *pval, uint64_t addr);
     int target_read_u32(uint32_t *pval, uint64_t addr);

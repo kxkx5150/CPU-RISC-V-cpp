@@ -2,7 +2,6 @@
 #include "PC.h"
 #include "PC_IO.h"
 
-
 PC::PC()
 {
     mem_map = new PhysMemMap();
@@ -43,7 +42,7 @@ void PC::init()
 
     if (console) {
         vbus->irq   = plic_irq[irq_num];
-        console_dev = virtio_console_init(vbus, console);
+        console_dev = (VIRTIODevice *)new VIRTIOConsoleDevice(vbus, console);
         vbus->addr += VIRTIO_SIZE;
         irq_num++;
         virtio_count++;
@@ -51,7 +50,7 @@ void PC::init()
 
     for (int i = 0; i < drive_count; i++) {
         vbus->irq = plic_irq[irq_num];
-        blk_dev   = virtio_block_init(vbus, tab_drive[i].block_dev);
+        blk_dev   = (VIRTIODevice *)new VIRTIOBlockDevice(vbus, tab_drive[i].block_dev);
         (void)blk_dev;
         vbus->addr += VIRTIO_SIZE;
         irq_num++;
@@ -129,18 +128,5 @@ void PC::run()
 
     delay  = 0;
     fd_max = -1;
-    if (console_dev && virtio_console_can_write_data(console_dev)) {
-        STDIODevice *s = (STDIODevice *)console->opaque;
-        stdin_fd       = s->stdin_fd;
-        FD_SET(stdin_fd, &rfds);
-        fd_max = stdin_fd;
-
-        if (s->resize_pending) {
-            int width, height;
-            console_get_size(s, &width, &height);
-            virtio_console_resize_event(console_dev, width, height);
-            s->resize_pending = FALSE;
-        }
-    }
     cpu->riscv_cpu_interp64(MAX_EXEC_CYCLE);
 }

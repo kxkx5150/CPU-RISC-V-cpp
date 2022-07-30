@@ -151,4 +151,20 @@ typedef struct
     int (*read_data)(void *opaque, uint8_t *buf, int len);
 } CharacterDevice;
 
+typedef struct
+{
+    uint32_t type;
+    uint8_t *buf;
+    int      write_size;
+    int      queue_idx;
+    int      desc_idx;
+} BlockRequest;
+
+typedef struct
+{
+    uint32_t type;
+    uint32_t ioprio;
+    uint64_t sector_num;
+} BlockRequestHeader;
+
 #endif

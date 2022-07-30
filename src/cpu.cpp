@@ -8,8 +8,6 @@
 #include <stdint.h>
 #include "cpu.h"
 
-
-
 void CPU::riscv_cpu_init64()
 {
     m_pc       = 0x1000;
@@ -52,13 +50,6 @@ uint64_t CPU::phys_read_u64(uint64_t addr)
         return 0;
     return *(uint64_t *)(pr->phys_mem + (uintptr_t)(addr - pr->addr));
 }
-
-
-
-
-
-
-
 
 int CPU::get_phys_addr(uint64_t *ppaddr, uint64_t vaddr, int access)
 {
@@ -296,13 +287,6 @@ int CPU::riscv64_write_slow(uint64_t addr, uint64_t val, int size_log2)
     }
     return 0;
 }
-
-
-
-
-
-
-
 
 uint32_t CPU::get_insn32(uint8_t *ptr)
 {
@@ -896,15 +880,6 @@ BOOL CPU::riscv_cpu_get_power_down64()
     return m_power_down_flag;
 }
 
-
-
-
-
-
-
-
-
-
 int CPU::target_read_u8(uint8_t *pval, uint64_t addr)
 {
     uint32_t tlb_idx = (addr >> PG_SHIFT) & (TLB_SIZE - 1);
@@ -966,13 +941,6 @@ int CPU::target_read_u64(uint64_t *pval, uint64_t addr)
     return 0;
 }
 
-
-
-
-
-
-
-
 int CPU::target_write_u8(uint64_t addr, uint8_t val)
 {
     uint32_t tlb_idx = (addr >> PG_SHIFT) & (TLB_SIZE - 1);
@@ -1013,15 +981,6 @@ int CPU::target_write_u64(uint64_t addr, uint64_t val)
         return riscv64_write_slow(addr, val, 3);
     }
 }
-
-
-
-
-
-
-
-
-
 
 void CPU::riscv_cpu_end64()
 {

@@ -1,8 +1,6 @@
 #include "PC.h"
 #include <byteswap.h>
 
-
-
 static int64_t bf_get_sector_count(BlockDevice *bs)
 {
     BlockDeviceFile *bf = (BlockDeviceFile *)bs->opaque;
@@ -107,8 +105,6 @@ inline BlockDevice *PC::block_device_init(const char *filename, BlockDeviceModeE
     return bs;
 }
 
-
-
 static void term_init(BOOL allow_ctrlc)
 {
     struct termios tty;
@@ -132,19 +128,6 @@ static void console_write(void *opaque, const uint8_t *buf, int len)
     fwrite(buf, 1, len, stdout);
     fflush(stdout);
 }
-static void console_get_size(STDIODevice *s, int *pw, int *ph)
-{
-    struct winsize ws;
-    int            width, height;
-    width  = 80;
-    height = 25;
-    if (ioctl(s->stdin_fd, TIOCGWINSZ, &ws) == 0 && ws.ws_col >= 4 && ws.ws_row >= 4) {
-        width  = ws.ws_col;
-        height = ws.ws_row;
-    }
-    *pw = width;
-    *ph = height;
-}
 inline CharacterDevice *PC::console_init(BOOL allow_ctrlc)
 {
     CharacterDevice *dev;
@@ -162,10 +145,6 @@ inline CharacterDevice *PC::console_init(BOOL allow_ctrlc)
     dev->write_data = console_write;
     return dev;
 }
-
-
-
-
 
 static void plic_update_mip(PC *s)
 {
@@ -231,9 +210,6 @@ static void plic_set_irq(void *opaque, int irq_num, int state)
         s->plic_pending_irq &= ~mask;
     plic_update_mip(s);
 }
-
-
-
 
 static uint32_t htif_read(void *opaque, uint32_t offset, int size_log2)
 {
@@ -309,15 +285,6 @@ static uint8_t *get_ram_ptr(PC *s, uint64_t paddr, BOOL is_rw)
 {
     return s->mem_map->phys_mem_get_ram_ptr(paddr, is_rw);
 }
-
-
-
-
-
-
-
-
-
 
 static void fdt_alloc_len(FDTState *s, int len)
 {

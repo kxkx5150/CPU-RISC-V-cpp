@@ -1,6 +1,5 @@
 #include "PC.h"
 
-
 int main(int argc, char **argv)
 {
     PC *pc = new PC();
