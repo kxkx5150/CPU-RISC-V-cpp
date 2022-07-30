@@ -2,163 +2,97 @@
 #define VIRTIO_H
 
 #include <sys/select.h>
-#include "iomem.h"
-
-#define VIRTIO_PAGE_SIZE 4096
-#define VIRTIO_ADDR_BITS 64
-
-#define VIRTIO_DEBUG_IO (1 << 0)
-#define VIRTIO_DEBUG_9P (1 << 1)
-
-#define VIRTIO_MMIO_MAGIC_VALUE         0x000
-#define VIRTIO_MMIO_VERSION             0x004
-#define VIRTIO_MMIO_DEVICE_ID           0x008
-#define VIRTIO_MMIO_VENDOR_ID           0x00c
-#define VIRTIO_MMIO_DEVICE_FEATURES     0x010
-#define VIRTIO_MMIO_DEVICE_FEATURES_SEL 0x014
-#define VIRTIO_MMIO_DRIVER_FEATURES     0x020
-#define VIRTIO_MMIO_DRIVER_FEATURES_SEL 0x024
-#define VIRTIO_MMIO_GUEST_PAGE_SIZE     0x028
-#define VIRTIO_MMIO_QUEUE_SEL           0x030
-#define VIRTIO_MMIO_QUEUE_NUM_MAX       0x034
-#define VIRTIO_MMIO_QUEUE_NUM           0x038
-#define VIRTIO_MMIO_QUEUE_ALIGN         0x03c
-#define VIRTIO_MMIO_QUEUE_PFN           0x040
-#define VIRTIO_MMIO_QUEUE_READY         0x044
-#define VIRTIO_MMIO_QUEUE_NOTIFY        0x050
-#define VIRTIO_MMIO_INTERRUPT_STATUS    0x060
-#define VIRTIO_MMIO_INTERRUPT_ACK       0x064
-#define VIRTIO_MMIO_STATUS              0x070
-#define VIRTIO_MMIO_QUEUE_DESC_LOW      0x080
-#define VIRTIO_MMIO_QUEUE_DESC_HIGH     0x084
-#define VIRTIO_MMIO_QUEUE_AVAIL_LOW     0x090
-#define VIRTIO_MMIO_QUEUE_AVAIL_HIGH    0x094
-#define VIRTIO_MMIO_QUEUE_USED_LOW      0x0a0
-#define VIRTIO_MMIO_QUEUE_USED_HIGH     0x0a4
-#define VIRTIO_MMIO_CONFIG_GENERATION   0x0fc
-#define VIRTIO_MMIO_CONFIG              0x100
-
-#define VIRTIO_PCI_DEVICE_FEATURE_SEL 0x000
-#define VIRTIO_PCI_DEVICE_FEATURE     0x004
-#define VIRTIO_PCI_GUEST_FEATURE_SEL  0x008
-#define VIRTIO_PCI_GUEST_FEATURE      0x00c
-#define VIRTIO_PCI_MSIX_CONFIG        0x010
-#define VIRTIO_PCI_NUM_QUEUES         0x012
-#define VIRTIO_PCI_DEVICE_STATUS      0x014
-#define VIRTIO_PCI_CONFIG_GENERATION  0x015
-#define VIRTIO_PCI_QUEUE_SEL          0x016
-#define VIRTIO_PCI_QUEUE_SIZE         0x018
-#define VIRTIO_PCI_QUEUE_MSIX_VECTOR  0x01a
-#define VIRTIO_PCI_QUEUE_ENABLE       0x01c
-#define VIRTIO_PCI_QUEUE_NOTIFY_OFF   0x01e
-#define VIRTIO_PCI_QUEUE_DESC_LOW     0x020
-#define VIRTIO_PCI_QUEUE_DESC_HIGH    0x024
-#define VIRTIO_PCI_QUEUE_AVAIL_LOW    0x028
-#define VIRTIO_PCI_QUEUE_AVAIL_HIGH   0x02c
-#define VIRTIO_PCI_QUEUE_USED_LOW     0x030
-#define VIRTIO_PCI_QUEUE_USED_HIGH    0x034
-
-#define VIRTIO_PCI_CFG_OFFSET    0x0000
-#define VIRTIO_PCI_ISR_OFFSET    0x1000
-#define VIRTIO_PCI_CONFIG_OFFSET 0x2000
-#define VIRTIO_PCI_NOTIFY_OFFSET 0x3000
-
-#define VIRTIO_PCI_CAP_LEN 16
-
-#define MAX_QUEUE             8
-#define MAX_CONFIG_SPACE_SIZE 256
-#define MAX_QUEUE_NUM         16
-
-#define VRING_DESC_F_NEXT     1
-#define VRING_DESC_F_WRITE    2
-#define VRING_DESC_F_INDIRECT 4
-
-#define VIRTIO_INPUT_EV_SYN 0x00
-#define VIRTIO_INPUT_EV_KEY 0x01
-#define VIRTIO_INPUT_EV_REL 0x02
-#define VIRTIO_INPUT_EV_ABS 0x03
-#define VIRTIO_INPUT_EV_REP 0x14
-
-#define BTN_LEFT      0x110
-#define BTN_RIGHT     0x111
-#define BTN_MIDDLE    0x112
-#define BTN_GEAR_DOWN 0x150
-#define BTN_GEAR_UP   0x151
-
-#define REL_X     0x00
-#define REL_Y     0x01
-#define REL_Z     0x02
-#define REL_WHEEL 0x08
-
-#define ABS_X 0x00
-#define ABS_Y 0x01
-#define ABS_Z 0x02
-
-#define VIRTIO_BLK_T_IN        0
-#define VIRTIO_BLK_T_OUT       1
-#define VIRTIO_BLK_T_FLUSH     4
-#define VIRTIO_BLK_T_FLUSH_OUT 5
-
-#define VIRTIO_BLK_S_OK     0
-#define VIRTIO_BLK_S_IOERR  1
-#define VIRTIO_BLK_S_UNSUPP 2
-#define SECTOR_SIZE         512
-
-typedef struct
-{
-    PhysMemMap *mem_map;
-    uint64_t    addr;
-    IRQSignal  *irq;
-} VIRTIOBusDef;
-
-typedef struct VIRTIODevice VIRTIODevice;
-
-typedef struct
-{
-    uint32_t ready; /* 0 or 1 */
-    uint32_t num;
-    uint16_t last_avail_idx;
-    uint64_t desc_addr;
-    uint64_t avail_addr;
-    uint64_t used_addr;
-    BOOL     manual_recv;
-} QueueState;
-
-typedef struct
-{
-    uint64_t addr;
-    uint32_t len;
-    uint16_t flags; /* VRING_DESC_F_x */
-    uint16_t next;
-} VIRTIODesc;
-
-
-typedef void               BlockDeviceCompletionFunc(void *opaque, int ret);
-typedef struct BlockDevice BlockDevice;
-
-struct BlockDevice
-{
-    int64_t (*get_sector_count)(BlockDevice *bs);
-    int (*read_async)(BlockDevice *bs, uint64_t sector_num, uint8_t *buf, int n, BlockDeviceCompletionFunc *cb,
-                      void *opaque);
-    int (*write_async)(BlockDevice *bs, uint64_t sector_num, const uint8_t *buf, int n, BlockDeviceCompletionFunc *cb,
-                       void *opaque);
-    void *opaque;
-};
+#include "def/virtio_def.h"
 
 VIRTIODevice *virtio_block_init(VIRTIOBusDef *bus, BlockDevice *bs);
+VIRTIODevice *virtio_console_init(VIRTIOBusDef *bus, CharacterDevice *cs);
 
-/* console device */
+typedef int      VIRTIODeviceRecvFunc(int queue_idx, int desc_idx, int read_size, int write_size);
+typedef uint8_t *VIRTIOGetRAMPtrFunc(uint64_t paddr, BOOL is_rw);
+
+
+class VIRTIODevice {
+  public:
+    PhysMemMap   *mem_map;
+    PhysMemRange *mem_range;
+    IRQSignal    *irq;
+    int           debug;
+
+    uint32_t int_status          = 0;
+    uint32_t status              = 0;
+    uint32_t device_features_sel = 0;
+    uint32_t queue_sel           = 0;
+
+    uint32_t device_id = 0;
+    uint32_t vendor_id;
+    uint32_t device_features   = 0;
+    uint32_t config_space_size = 0;
+    uint8_t  config_space[MAX_CONFIG_SPACE_SIZE];
+
+    QueueState queue[MAX_QUEUE];
+
+    void (*config_write)();
+    VIRTIODeviceRecvFunc *device_recv;
+
+    VIRTIOGetRAMPtrFunc *get_ram_ptr;
+
+    void     virtio_reset();
+    uint8_t *virtio_mmio_get_ram_ptr(uint64_t paddr, BOOL is_rw);
+    void     virtio_init(VIRTIOBusDef *bus, uint32_t _device_id, int _config_space_size,
+                         VIRTIODeviceRecvFunc *_device_recv);
+    uint16_t virtio_read16(uint64_t addr);
+    void     virtio_write16(uint64_t addr, uint16_t val);
+    void     virtio_write32(uint64_t addr, uint32_t val);
+    int      virtio_memcpy_from_ram(uint8_t *buf, uint64_t addr, int count);
+    int      virtio_memcpy_to_ram(uint64_t addr, const uint8_t *buf, int count);
+    int      get_desc(VIRTIODesc *desc, int queue_idx, int desc_idx);
+    int      memcpy_to_from_queue(uint8_t *buf, int queue_idx, int desc_idx, int offset, int count, BOOL to_queue);
+    int      memcpy_from_queue(void *buf, int queue_idx, int desc_idx, int offset, int count);
+    int      memcpy_to_queue(int queue_idx, int desc_idx, int offset, const void *buf, int count);
+    void     virtio_consume_desc(int queue_idx, int desc_idx, int desc_len);
+    int      get_desc_rw_size(int *pread_size, int *pwrite_size, int queue_idx, int desc_idx);
+    void     queue_notify(int queue_idx);
+    uint32_t virtio_config_read(uint32_t offset, int size_log2);
+    void     virtio_config_write(uint32_t offset, uint32_t val, int size_log2);
+
+    void set_low32(uint64_t *paddr, uint32_t val);
+    void set_high32(uint64_t *paddr, uint32_t val);
+    void virtio_config_change_notify();
+    void virtio_block_req_end(int ret);
+    int  virtio_block_recv_request(int queue_idx, int desc_idx, int read_size, int write_size);
+    int  virtio_console_recv_request(int queue_idx, int desc_idx, int read_size, int write_size);
+};
 
 typedef struct
 {
-    void *opaque;
-    void (*write_data)(void *opaque, const uint8_t *buf, int len);
-    int (*read_data)(void *opaque, uint8_t *buf, int len);
-} CharacterDevice;
+    uint32_t type;
+    uint8_t *buf;
+    int      write_size;
+    int      queue_idx;
+    int      desc_idx;
+} BlockRequest;
 
-VIRTIODevice *virtio_console_init(VIRTIOBusDef *bus, CharacterDevice *cs);
-BOOL          virtio_console_can_write_data(VIRTIODevice *s);
-void          virtio_console_resize_event(VIRTIODevice *s, int width, int height);
+typedef struct VIRTIOBlockDevice
+{
+    VIRTIODevice common;
+    BlockDevice *bs;
 
-#endif /* VIRTIO_H */
+    BOOL         req_in_progress;
+    BlockRequest req; /* request in progress */
+} VIRTIOBlockDevice;
+
+typedef struct
+{
+    uint32_t type;
+    uint32_t ioprio;
+    uint64_t sector_num;
+} BlockRequestHeader;
+
+typedef struct VIRTIOConsoleDevice
+{
+    VIRTIODevice     common;
+    CharacterDevice *cs;
+} VIRTIOConsoleDevice;
+
+
+#endif
