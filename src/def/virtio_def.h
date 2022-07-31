@@ -131,15 +131,14 @@ typedef struct
     uint16_t next;
 } VIRTIODesc;
 
-typedef void               BlockDeviceCompletionFunc(void *opaque, int ret);
-typedef struct BlockDevice BlockDevice;
+typedef void            BlockDevCompFunc(void *opaque, int ret);
+typedef struct BlockDev BlockDev;
 
-struct BlockDevice
+struct BlockDev
 {
-    int64_t (*get_sector_count)(BlockDevice *bs);
-    int (*read_async)(BlockDevice *bs, uint64_t sector_num, uint8_t *buf, int n, BlockDeviceCompletionFunc *cb,
-                      void *opaque);
-    int (*write_async)(BlockDevice *bs, uint64_t sector_num, const uint8_t *buf, int n, BlockDeviceCompletionFunc *cb,
+    int64_t (*get_sector_count)(BlockDev *bs);
+    int (*read_async)(BlockDev *bs, uint64_t sector_num, uint8_t *buf, int n, BlockDevCompFunc *cb, void *opaque);
+    int (*write_async)(BlockDev *bs, uint64_t sector_num, const uint8_t *buf, int n, BlockDevCompFunc *cb,
                        void *opaque);
     void *opaque;
 };
@@ -149,7 +148,7 @@ typedef struct
     void *opaque;
     void (*write_data)(void *opaque, const uint8_t *buf, int len);
     int (*read_data)(void *opaque, uint8_t *buf, int len);
-} CharacterDevice;
+} CharDev;
 
 typedef struct
 {

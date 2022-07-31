@@ -1,290 +1,8 @@
+#ifndef PCFDT_H
+#define PCFDT_H
 #include "PC.h"
-#include <byteswap.h>
+#include "../def/PC_def.h"
 
-static int64_t bf_get_sector_count(BlockDevice *bs)
-{
-    BlockDeviceFile *bf = (BlockDeviceFile *)bs->opaque;
-    return bf->nb_sectors;
-}
-static int bf_read_async(BlockDevice *bs, uint64_t sector_num, uint8_t *buf, int n, BlockDeviceCompletionFunc *cb,
-                         void *opaque)
-{
-    BlockDeviceFile *bf = (BlockDeviceFile *)bs->opaque;
-    if (!bf->f)
-        return -1;
-    if (bf->mode == BF_MODE_SNAPSHOT) {
-        int i;
-        for (i = 0; i < n; i++) {
-            if (!bf->sector_table[sector_num]) {
-                fseek(bf->f, sector_num * SECTOR_SIZE, SEEK_SET);
-                auto _ = fread(buf, 1, SECTOR_SIZE, bf->f);
-            } else {
-                memcpy(buf, bf->sector_table[sector_num], SECTOR_SIZE);
-            }
-            sector_num++;
-            buf += SECTOR_SIZE;
-        }
-    } else {
-        fseek(bf->f, sector_num * SECTOR_SIZE, SEEK_SET);
-        auto _ = fread(buf, 1, n * SECTOR_SIZE, bf->f);
-    }
-    /* synchronous read */
-    return 0;
-}
-static int bf_write_async(BlockDevice *bs, uint64_t sector_num, const uint8_t *buf, int n,
-                          BlockDeviceCompletionFunc *cb, void *opaque)
-{
-    BlockDeviceFile *bf = (BlockDeviceFile *)bs->opaque;
-    int              ret;
-
-    switch (bf->mode) {
-        case BF_MODE_RO:
-            ret = -1; /* error */
-            break;
-        case BF_MODE_RW:
-            fseek(bf->f, sector_num * SECTOR_SIZE, SEEK_SET);
-            fwrite(buf, 1, n * SECTOR_SIZE, bf->f);
-            ret = 0;
-            break;
-        case BF_MODE_SNAPSHOT: {
-            int i;
-            if ((sector_num + n) > bf->nb_sectors)
-                return -1;
-            for (i = 0; i < n; i++) {
-                if (!bf->sector_table[sector_num]) {
-                    bf->sector_table[sector_num] = (uint8_t *)malloc(SECTOR_SIZE);
-                }
-                memcpy(bf->sector_table[sector_num], buf, SECTOR_SIZE);
-                sector_num++;
-                buf += SECTOR_SIZE;
-            }
-            ret = 0;
-        } break;
-        default:
-            abort();
-    }
-
-    return ret;
-}
-inline BlockDevice *PC::block_device_init(const char *filename, BlockDeviceModeEnum mode)
-{
-    BlockDevice     *bs;
-    BlockDeviceFile *bf;
-    int64_t          file_size;
-    FILE            *f;
-    const char      *mode_str;
-
-    if (mode == BF_MODE_RW) {
-        mode_str = "r+b";
-    } else {
-        mode_str = "rb";
-    }
-
-    f = fopen(filename, mode_str);
-    if (!f) {
-        perror(filename);
-        exit(1);
-    }
-    fseek(f, 0, SEEK_END);
-    file_size = ftello(f);
-
-    bs             = (BlockDevice *)mallocz(sizeof(*bs));
-    bf             = (BlockDeviceFile *)mallocz(sizeof(*bf));
-    bf->mode       = mode;
-    bf->nb_sectors = file_size / 512;
-    bf->f          = f;
-
-    if (mode == BF_MODE_SNAPSHOT) {
-        bf->sector_table = (uint8_t **)mallocz(sizeof(bf->sector_table[0]) * bf->nb_sectors);
-    }
-
-    bs->opaque           = bf;
-    bs->get_sector_count = bf_get_sector_count;
-    bs->read_async       = bf_read_async;
-    bs->write_async      = bf_write_async;
-    return bs;
-}
-
-static void term_init(BOOL allow_ctrlc)
-{
-    struct termios tty;
-    memset(&tty, 0, sizeof(tty));
-    tcgetattr(0, &tty);
-
-    tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
-    tty.c_oflag |= OPOST;
-    tty.c_lflag &= ~(ECHO | ECHONL | ICANON | IEXTEN);
-    if (!allow_ctrlc)
-        tty.c_lflag &= ~ISIG;
-    tty.c_cflag &= ~(CSIZE | PARENB);
-    tty.c_cflag |= CS8;
-    tty.c_cc[VMIN]  = 1;
-    tty.c_cc[VTIME] = 0;
-
-    tcsetattr(0, TCSANOW, &tty);
-}
-static void console_write(void *opaque, const uint8_t *buf, int len)
-{
-    fwrite(buf, 1, len, stdout);
-    fflush(stdout);
-}
-inline CharacterDevice *PC::console_init(BOOL allow_ctrlc)
-{
-    CharacterDevice *dev;
-    STDIODevice     *s;
-    term_init(allow_ctrlc);
-
-    dev         = (CharacterDevice *)mallocz(sizeof(*dev));
-    s           = (STDIODevice *)mallocz(sizeof(*s));
-    s->stdin_fd = 0;
-    fcntl(s->stdin_fd, F_SETFL, O_NONBLOCK);
-
-    s->resize_pending = TRUE;
-
-    dev->opaque     = s;
-    dev->write_data = console_write;
-    return dev;
-}
-
-static void plic_update_mip(PC *s)
-{
-    uint32_t mask;
-    mask = s->plic_pending_irq & ~s->plic_served_irq;
-    if (mask) {
-        s->cpu->riscv_cpu_set_mip64(MIP_MEIP | MIP_SEIP);
-    } else {
-        s->cpu->riscv_cpu_reset_mip64(MIP_MEIP | MIP_SEIP);
-    }
-}
-static uint32_t plic_read(void *opaque, uint32_t offset, int size_log2)
-{
-    PC      *s = (PC *)opaque;
-    uint32_t val, mask;
-    int      i;
-    assert(size_log2 == 2);
-    switch (offset) {
-        case PLIC_HART_BASE:
-            val = 0;
-            break;
-        case PLIC_HART_BASE + 4:
-            mask = s->plic_pending_irq & ~s->plic_served_irq;
-            if (mask != 0) {
-                i = ctz32(mask);
-                s->plic_served_irq |= 1 << i;
-                plic_update_mip(s);
-                val = i + 1;
-            } else {
-                val = 0;
-            }
-            break;
-        default:
-            val = 0;
-            break;
-    }
-    return val;
-}
-static void plic_write(void *opaque, uint32_t offset, uint32_t val, int size_log2)
-{
-    PC *s = (PC *)opaque;
-    assert(size_log2 == 2);
-    switch (offset) {
-        case PLIC_HART_BASE + 4:
-            val--;
-            if (val < 32) {
-                s->plic_served_irq &= ~(1 << val);
-                plic_update_mip(s);
-            }
-            break;
-        default:
-            break;
-    }
-}
-static void plic_set_irq(void *opaque, int irq_num, int state)
-{
-    PC *s = (PC *)opaque;
-
-    uint32_t mask = 1 << (irq_num - 1);
-    if (state)
-        s->plic_pending_irq |= mask;
-    else
-        s->plic_pending_irq &= ~mask;
-    plic_update_mip(s);
-}
-
-static uint32_t htif_read(void *opaque, uint32_t offset, int size_log2)
-{
-    PC      *s = (PC *)opaque;
-    uint32_t val;
-
-    assert(size_log2 == 2);
-    switch (offset) {
-        case 0:
-            val = s->htif_tohost;
-            break;
-        case 4:
-            val = s->htif_tohost >> 32;
-            break;
-        case 8:
-            val = s->htif_fromhost;
-            break;
-        case 12:
-            val = s->htif_fromhost >> 32;
-            break;
-        default:
-            val = 0;
-            break;
-    }
-    return val;
-}
-static void htif_handle_cmd(PC *s)
-{
-    uint32_t device, cmd;
-
-    device = s->htif_tohost >> 56;
-    cmd    = (s->htif_tohost >> 48) & 0xff;
-    if (s->htif_tohost == 1) {
-        /* shuthost */
-        printf("\nPower off.\n");
-        exit(0);
-    } else if (device == 1 && cmd == 1) {
-        uint8_t buf[1];
-        buf[0] = s->htif_tohost & 0xff;
-        s->console->write_data(s->console->opaque, buf, 1);
-        s->htif_tohost   = 0;
-        s->htif_fromhost = ((uint64_t)device << 56) | ((uint64_t)cmd << 48);
-    } else if (device == 1 && cmd == 0) {
-        s->htif_tohost = 0;
-    } else {
-        printf("HTIF: unsupported tohost=0x%016" PRIx64 "\n", s->htif_tohost);
-    }
-}
-static void htif_write(void *opaque, uint32_t offset, uint32_t val, int size_log2)
-{
-    PC *s = (PC *)opaque;
-
-    assert(size_log2 == 2);
-    switch (offset) {
-        case 0:
-            s->htif_tohost = (s->htif_tohost & ~0xffffffff) | val;
-            break;
-        case 4:
-            s->htif_tohost = (s->htif_tohost & 0xffffffff) | ((uint64_t)val << 32);
-            htif_handle_cmd(s);
-            break;
-        case 8:
-            s->htif_fromhost = (s->htif_fromhost & ~0xffffffff) | val;
-            break;
-        case 12:
-            s->htif_fromhost = (s->htif_fromhost & 0xffffffff) | (uint64_t)val << 32;
-            break;
-        default:
-            break;
-    }
-}
-static uint8_t *get_ram_ptr(PC *s, uint64_t paddr, BOOL is_rw)
-{
-    return s->mem_map->phys_mem_get_ram_ptr(paddr, is_rw);
-}
 
 static void fdt_alloc_len(FDTState *s, int len)
 {
@@ -298,7 +16,7 @@ static void fdt_alloc_len(FDTState *s, int len)
 static void fdt_put32(FDTState *s, int v)
 {
     fdt_alloc_len(s, s->tab_len + 1);
-    s->tab[s->tab_len++] = bswap_32(v);
+    s->tab[s->tab_len++] = __bswap_32(v);
 }
 static void fdt_put_data(FDTState *s, const uint8_t *data, int len)
 {
@@ -431,37 +149,35 @@ inline int fdt_output(FDTState *s, uint8_t *dst)
     int                       dt_strings_size;
     int                       pos;
 
-    assert(s->open_node_count == 0);
-
     fdt_put32(s, FDT_END);
 
     dt_struct_size  = s->tab_len * sizeof(uint32_t);
     dt_strings_size = s->string_table_len;
 
     h                    = (struct fdt_header *)dst;
-    h->magic             = bswap_32(FDT_MAGIC);
-    h->version           = bswap_32(FDT_VERSION);
-    h->last_comp_version = bswap_32(16);
-    h->boot_cpuid_phys   = bswap_32(0);
-    h->size_dt_strings   = bswap_32(dt_strings_size);
-    h->size_dt_struct    = bswap_32(dt_struct_size);
+    h->magic             = __bswap_32(FDT_MAGIC);
+    h->version           = __bswap_32(FDT_VERSION);
+    h->last_comp_version = __bswap_32(16);
+    h->boot_cpuid_phys   = __bswap_32(0);
+    h->size_dt_strings   = __bswap_32(dt_strings_size);
+    h->size_dt_struct    = __bswap_32(dt_struct_size);
 
     pos = sizeof(struct fdt_header);
 
-    h->off_dt_struct = bswap_32(pos);
+    h->off_dt_struct = __bswap_32(pos);
     memcpy(dst + pos, s->tab, dt_struct_size);
     pos += dt_struct_size;
 
     while ((pos & 7) != 0) {
         dst[pos++] = 0;
     }
-    h->off_mem_rsvmap = bswap_32(pos);
+    h->off_mem_rsvmap = __bswap_32(pos);
     re                = (struct fdt_reserve_entry *)(dst + pos);
     re->address       = 0; /* no reserved entry */
     re->size          = 0;
     pos += sizeof(struct fdt_reserve_entry);
 
-    h->off_dt_strings = bswap_32(pos);
+    h->off_dt_strings = __bswap_32(pos);
     memcpy(dst + pos, s->string_table, dt_strings_size);
     pos += dt_strings_size;
 
@@ -469,7 +185,7 @@ inline int fdt_output(FDTState *s, uint8_t *dst)
         dst[pos++] = 0;
     }
 
-    h->totalsize = bswap_32(pos);
+    h->totalsize = __bswap_32(pos);
     return pos;
 }
 inline void fdt_end(FDTState *s)
@@ -614,3 +330,4 @@ static int build_fdt(PC *m, uint8_t *dst, uint64_t kernel_start, uint64_t kernel
     fdt_end(s);
     return size;
 }
+#endif

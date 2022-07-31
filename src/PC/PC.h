@@ -1,5 +1,5 @@
-#ifndef RPC_H
-#define RPC_H
+#ifndef PC_H
+#define PC_H
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -20,10 +20,10 @@
 #include <signal.h>
 #include <string>
 
-#include "iomem.h"
-#include "def/PC_def.h"
-#include "cpu.h"
-#include "virtio.h"
+#include "../iomem.h"
+#include "../def/PC_def.h"
+#include "../cpu.h"
+#include "../virtio.h"
 
 class PC {
   public:
@@ -52,12 +52,12 @@ class PC {
     uint32_t kernel_base = 0;
     uint32_t initrd_base = 0;
 
-    CPU             *cpu         = nullptr;
-    BlockDevice     *drive       = nullptr;
-    PhysMemMap      *mem_map     = nullptr;
-    CharacterDevice *console     = nullptr;
-    VIRTIODevice    *console_dev = nullptr;
-    VMDriveEntry     tab_drive[MAX_DRIVE_DEVICE];
+    CPU          *cpu         = nullptr;
+    BlockDev     *drive       = nullptr;
+    PhysMemMap   *mem_map     = nullptr;
+    CharDev      *console     = nullptr;
+    VIRTIODevice *console_dev = nullptr;
+    VMDriveEntry  tab_drive[MAX_DRIVE_DEVICE];
 
     int virtio_count = 0;
 
@@ -70,7 +70,12 @@ class PC {
     void start();
     void run();
 
-    BlockDevice     *block_device_init(const char *filename, BlockDeviceModeEnum mode);
-    CharacterDevice *console_init(BOOL allow_ctrlc);
+    BlockDev *block_device_init(const char *filename, BlockDevModeEnum mode);
+
+    CharDev *console_init(BOOL allow_ctrlc);
+    void     term_init(BOOL allow_ctrlc);
+    void     plic_update_mip();
+    uint8_t *get_ram_ptr(uint64_t paddr, BOOL is_rw);
+    void     htif_handle_cmd();
 };
 #endif

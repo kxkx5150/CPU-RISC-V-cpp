@@ -162,8 +162,8 @@ static void virtio_mmio_write(void *opaque, uint32_t offset, uint32_t val, int s
 }
 static void virtio_block_req_cb(void *opaque, int ret)
 {
-    VIRTIODevice      *s  = (VIRTIODevice *)opaque;
-    VIRTIOBlockDevice *s1 = (VIRTIOBlockDevice *)s;
+    VIRTIODevice   *s  = (VIRTIODevice *)opaque;
+    VIRTIOBlockDev *s1 = (VIRTIOBlockDev *)s;
     s->virtio_block_req_end(ret);
     s1->req_in_progress = FALSE;
     s->queue_notify(s1->req.queue_idx);
@@ -171,7 +171,7 @@ static void virtio_block_req_cb(void *opaque, int ret)
 static int virtio_console_recv_request(VIRTIODevice *s, int queue_idx, int desc_idx, int read_size, int write_size)
 {
     VIRTIOConsoleDevice *s1 = (VIRTIOConsoleDevice *)s;
-    CharacterDevice     *cs = s1->cs;
+    CharDev             *cs = s1->cs;
     uint8_t             *buf;
 
     if (queue_idx == 1) {
@@ -185,8 +185,8 @@ static int virtio_console_recv_request(VIRTIODevice *s, int queue_idx, int desc_
 }
 static int virtio_block_recv_request(VIRTIODevice *s, int queue_idx, int desc_idx, int read_size, int write_size)
 {
-    VIRTIOBlockDevice *s1 = (VIRTIOBlockDevice *)s;
-    BlockDevice       *bs = s1->bs;
+    VIRTIOBlockDev    *s1 = (VIRTIOBlockDev *)s;
+    BlockDev          *bs = s1->bs;
     BlockRequestHeader h;
     uint8_t           *buf;
     int                len, ret;
@@ -212,7 +212,6 @@ static int virtio_block_recv_request(VIRTIODevice *s, int queue_idx, int desc_id
             }
             break;
         case VIRTIO_BLK_T_OUT:
-            assert(write_size >= 1);
             len = read_size - sizeof(h);
             buf = (uint8_t *)malloc(len);
             s->memcpy_from_queue(buf, queue_idx, desc_idx, sizeof(h), len);
@@ -512,11 +511,11 @@ void VIRTIODevice::virtio_config_change_notify()
 }
 void VIRTIODevice::virtio_block_req_end(int ret)
 {
-    VIRTIOBlockDevice *s1 = (VIRTIOBlockDevice *)this;
-    int                write_size;
-    int                queue_idx = s1->req.queue_idx;
-    int                desc_idx  = s1->req.desc_idx;
-    uint8_t           *buf, buf1[1];
+    VIRTIOBlockDev *s1 = (VIRTIOBlockDev *)this;
+    int             write_size;
+    int             queue_idx = s1->req.queue_idx;
+    int             desc_idx  = s1->req.desc_idx;
+    uint8_t        *buf, buf1[1];
 
     switch (s1->req.type) {
         case VIRTIO_BLK_T_IN:
@@ -556,14 +555,14 @@ void VIRTIODevice::virtio_init(VIRTIOBusDef *bus, uint32_t _device_id, int _conf
     device_recv       = _device_recv;
     virtio_reset();
 }
-VIRTIOConsoleDevice::VIRTIOConsoleDevice(VIRTIOBusDef *bus, CharacterDevice *_cs)
+VIRTIOConsoleDevice::VIRTIOConsoleDevice(VIRTIOBusDef *bus, CharDev *_cs)
 {
     virtio_init(bus, 3, 4, virtio_console_recv_request);
     device_features      = (1 << 0);
     queue[0].manual_recv = TRUE;
     cs                   = _cs;
 }
-VIRTIOBlockDevice::VIRTIOBlockDevice(VIRTIOBusDef *bus, BlockDevice *_bs)
+VIRTIOBlockDev::VIRTIOBlockDev(VIRTIOBusDef *bus, BlockDev *_bs)
 {
     virtio_init(bus, 2, 8, virtio_block_recv_request);
     bs                  = _bs;

@@ -59,19 +59,19 @@ class VIRTIODevice {
 };
 class VIRTIOConsoleDevice : public VIRTIODevice {
   public:
-    CharacterDevice *cs;
+    CharDev *cs;
 
   public:
-    VIRTIOConsoleDevice(VIRTIOBusDef *bus, CharacterDevice *_cs);
+    VIRTIOConsoleDevice(VIRTIOBusDef *bus, CharDev *_cs);
 };
-class VIRTIOBlockDevice : public VIRTIODevice {
+class VIRTIOBlockDev : public VIRTIODevice {
   public:
-    BlockDevice *bs;
+    BlockDev    *bs;
     BOOL         req_in_progress;
     BlockRequest req;
 
   public:
-    VIRTIOBlockDevice(VIRTIOBusDef *bus, BlockDevice *_bs);
+    VIRTIOBlockDev(VIRTIOBusDef *bus, BlockDev *_bs);
 };
 
 #endif

@@ -3,7 +3,7 @@ project(cpp_app)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "../exe")
 
-file(GLOB sourcefiles "src/*.c" "src/*.h" "src/*.cpp")
+file(GLOB sourcefiles "src/*.c" "src/*.h" "src/*.cpp" "src/PC/*.cpp" "src/PC/*.h")
 add_executable(${PROJECT_NAME} ${sourcefiles}
 )
 

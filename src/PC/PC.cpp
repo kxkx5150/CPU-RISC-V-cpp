@@ -1,6 +1,7 @@
 #include <byteswap.h>
 #include "PC.h"
 #include "PC_IO.h"
+#include "PC_FDT.h"
 
 PC::PC()
 {
@@ -49,7 +50,7 @@ void PC::init()
 
     for (int i = 0; i < drive_count; i++) {
         vbus->irq = plic_irq[irq_num];
-        blk_dev   = (VIRTIODevice *)new VIRTIOBlockDevice(vbus, tab_drive[i].block_dev);
+        blk_dev   = (VIRTIODevice *)new VIRTIOBlockDev(vbus, tab_drive[i].block_dev);
         (void)blk_dev;
         vbus->addr += VIRTIO_SIZE;
         irq_num++;
@@ -105,7 +106,7 @@ void PC::load(int binno, std::string path)
 void PC::start()
 {
     std::string cmd_line = "console=hvc0 root=/dev/vda rw";
-    uint8_t    *ram_ptr  = get_ram_ptr(this, 0, TRUE);
+    uint8_t    *ram_ptr  = get_ram_ptr(0, TRUE);
     uint32_t    fdt_addr = 0x1000 + 8 * 8;
     build_fdt(this, ram_ptr + fdt_addr, RAM_BASE_ADDR + kernel_base, krnllen, RAM_BASE_ADDR + initrd_base, fsyslen,
               cmd_line.c_str());

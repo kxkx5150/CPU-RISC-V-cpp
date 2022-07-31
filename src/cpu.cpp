@@ -780,7 +780,6 @@ int32_t CPU::sext(int32_t val, int n)
 }
 uint32_t CPU::get_field1(uint32_t val, int src_pos, int dst_pos, int dst_pos_max)
 {
-    assert(dst_pos_max >= dst_pos);
     int mask = ((1 << (dst_pos_max - dst_pos + 1)) - 1) << dst_pos;
     if (dst_pos >= src_pos)
         return (val << (dst_pos - src_pos)) & mask;

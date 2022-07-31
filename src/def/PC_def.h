@@ -1,4 +1,5 @@
-
+#ifndef PCDEF_H
+#define PCDEF_H
 #include <bits/types/FILE.h>
 #include <cstdint>
 #include "../virtio.h"
@@ -70,9 +71,9 @@ typedef struct
 
 typedef struct
 {
-    char        *device;
-    char        *filename;
-    BlockDevice *block_dev;
+    char     *device;
+    char     *filename;
+    BlockDev *block_dev;
 } VMDriveEntry;
 
 typedef struct VirtMachineClass VirtMachineClass;
@@ -87,7 +88,7 @@ typedef struct
     BOOL                    rtc_local_time;
     char                   *display_device; /* NULL means no display */
     int                     width, height;  /* graphic width & height */
-    CharacterDevice        *console;
+    CharDev                *console;
     VMDriveEntry            tab_drive[MAX_DRIVE_DEVICE];
     int                     drive_count;
     int                     fs_count;
@@ -102,7 +103,7 @@ typedef struct VirtMachine
 {
     const VirtMachineClass *vmc;
     VIRTIODevice           *console_dev;
-    CharacterDevice        *console;
+    CharDev                *console;
     FBDevice               *fb_dev;
 } VirtMachine;
 
@@ -170,12 +171,13 @@ typedef enum
     BF_MODE_RO,
     BF_MODE_RW,
     BF_MODE_SNAPSHOT,
-} BlockDeviceModeEnum;
+} BlockDevModeEnum;
 
-typedef struct BlockDeviceFile
+typedef struct BlockDevFile
 {
-    FILE               *f;
-    int64_t             nb_sectors;
-    BlockDeviceModeEnum mode;
-    uint8_t           **sector_table;
-} BlockDeviceFile;
+    FILE            *f;
+    int64_t          nb_sectors;
+    BlockDevModeEnum mode;
+    uint8_t        **sector_table;
+} BlockDevFile;
+#endif
